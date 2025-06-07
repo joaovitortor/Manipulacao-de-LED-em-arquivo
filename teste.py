@@ -118,8 +118,6 @@ def escreve_fragmentacao(arq: io.BufferedRandom, offset_frag: int, offset_prox_f
     arq.seek(offset_frag)
     arq.read(3)
     arq.write(offset_prox_frag.to_bytes(4, signed=True))
-    
-
 
 def leia_led(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     '''
