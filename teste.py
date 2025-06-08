@@ -1,5 +1,3 @@
-#2bytes tamanho - 2 bytes ID
-
 from sys import argv
 import io
 import os
@@ -8,6 +6,7 @@ def constroi_indice(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     '''
     forma uma tupla com todos os ids e seus offsets do arquivo em ordem crescente dos ids
     '''
+    arq.seek(0)
     led = int.from_bytes(arq.read(4), signed=True)
     offset = arq.tell()
     arq.seek(0, os.SEEK_END)
@@ -16,39 +15,48 @@ def constroi_indice(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     chaves: list[tuple[int, int]] = []
     while offset < offset_final:
         dados, tamanho = leia_reg(arq)
+        print(dados)
         id = dados.split('|')[0]
-        #if id.isdigit():
-        chaves.append((int(id), offset))
-        print(arq.tell())
+        if id.isdigit():
+            chaves.append((int(id), offset))
+        #print(arq.tell())
         leia_nulo(arq, arq.tell()) #11929
-        print(arq.tell())
+        #print(arq.tell())
         offset = arq.tell()
-    print('Final:', offset_final)
     chaves.sort()
     return chaves
 
-def insere_indice() -> None:
-    pass
+def insere_indice(id: int, offset: str, indice: list[tuple[int, int]]) -> None:
+    '''
+    Insere um elemento (id, offset) na lista de indices e ordena
+    '''
+    indice.append((id, offset))
+    indice.sort()
 
-def leia_nulo(arq: io.BufferedRandom, offset: int):
-    #Enquanto campo == b'0' e campo != b'|' e campo != b''
-    #Então, offset_atual = arq.tell() - 5
+def leia_nulo(arq: io.BufferedRandom, offset: int) -> None:
+    '''
+    lê os bytes nulos da posição do *offset* e move o ponteiro para a posição do ultimo caractere nao nulo sequencialmente no arquivo 
+    '''
     arq.seek(offset)
     offset_atual = arq.tell()
-    campo = arq.read(1)
-    if campo != b'':
-        while campo == b'\0' and campo != b'|' and campo != b'':
+    campo = arq.read(2)
+    if campo == b'\0\0':
+        while campo != b'|' and campo != b'':
             campo = arq.read(1)
-        offset_atual = arq.tell() - 2
-        arq.seek(offset_atual)
-    else: 
-        return offset_atual
+            if campo != b'':
+                offset_atual = arq.tell()
+    arq.seek(offset_atual)
+    
+
+    #if arq.read(2) == :
+    #volta uma casa e le dois 
+    # \0 \0 \0 \0 12 \0 04 |
+    # 12 45 \0 187 
 
 
 def leia_reg(arq: io.BufferedRandom) -> tuple[str, int]:
-    '''
-    Lê o registro do seek atual e retorna uma tupla 
-    ['registro', tamanho]
+    ''' 
+    Lê o registro do seek atual e retorna uma tupla ['registro', tamanho]
     '''
     
     tamanho = int.from_bytes(arq.read(2))
@@ -86,70 +94,70 @@ def remove_registro(arq: io.BufferedRandom, id: int, indice: list[tuple[int, int
         tam = int.from_bytes(arq.read(2))
         indice.remove((id, busca_binaria(id, indice)))
         arq.write(b'*')
-        insere_led(arq, tam, offset)
+        insere_fragmentacao(arq, tam, offset)
     else:
         print("ID não existe. Tente novamente")
 
-def insere_registro(arq: io.BufferedRandom, registro: str, indices: list[tuple[int, int]]):
+def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[int, int]]) -> None:
     '''
-    
-    
     Insere o registro
     '''
-    tam_reg = len(registro)
-    led = leia_led(arq)
-    if led[0][0] == -1:
-        #insere no final do arq
-        offset = arq.seek(0, os.SEEK_END).tell()
-        escreve_arq(arq, offset, registro, 0)
-        id = int(registro.split('|')[0])
-        indices.append((id, offset))
-    else:
-        i = 0
-        while led[i][1] < tam_reg and i < len(led) -1:
-            i += 1
-        diferenca = led[i][1] - tam_reg - 2
-        offset_insere = led[i][0]
-        if i == 0:
-            print('ENTROU INSERIR NO CABEÇALHO')
-            #insere no offset que estava no cabeçalho
-            escreve_arq(arq, offset_insere, registro, diferenca)
-            #altera o cabeçalho
-            altera_led(arq, led, 0, led[i+1][0])
-        elif i == len(led) - 1:
-            #Insere no final e não é necessário alterar a led
-            print("ENTROU INSERIR FIMMMMM")
+    id = int(registro.split('|')[0])
+    if (busca_binaria(id, indice)) == -1:
+        tam_reg = len(registro) + 2
+        led = leia_led(arq)
+
+        if led[0][0] == -1: #insere no final do arq
             arq.seek(0, os.SEEK_END)
-            #tamanho_bytes = len(registro).to_bytes(2)
-            #registro_bytes = registro.encode()
-            #arq.write(tamanho_bytes)
-            #arq.write(registro_bytes)
-            offset_final = arq.tell()
-            escreve_arq(arq, offset_final, registro, 0)
+            offset = arq.tell()
+            escreve_registro(arq, offset, registro, 0)
+            insere_indice(id, offset, indice)
         else:
-            print("ENTROU INSERIR MEIOOOOO!!!")
-            #insere no meio
-            escreve_arq(arq, offset_insere, registro, diferenca)
-            #Altera a ordem da LED
-            altera_led(arq, led, led[i-1][0], led[i+1][0])
-    indices.sort()
+            i = 0
+            while led[i][1] < tam_reg and i < len(led) -1:
+                i += 1
+            diferenca = led[i][1] - tam_reg - 2
+            offset_insere = led[i][0]
+
+            if i == 0: #insere no cabeçalho
+                print('ENTROU INSERIR NO CABEÇALHO')
+                escreve_registro(arq, offset_insere, registro, diferenca)
+                insere_indice(id, offset_insere, indice)
+                ordena_led(arq, led, 0, led[i+1][0])
+
+            elif i == len(led) - 1: #insere no fim
+                print("ENTROU INSERIR FIMMMMM")
+                arq.seek(0, os.SEEK_END)
+                offset_final = arq.tell()
+                escreve_registro(arq, offset_final, registro, 0)
+                insere_indice(id, offset_final, indice)
+
+            else: #Insere no meio
+                print("ENTROU INSERIR MEIOOOOO!!!")
+                escreve_registro(arq, offset_insere, registro, diferenca)
+                insere_indice(id, offset_insere, indice)
+                ordena_led(arq, led, led[i-1][0], led[i+1][0])
+    else:
+        print("ID já existe no arquivo. Tente inserir com outro ID")
             
 def escreve_registro(arq: io.BufferedRandom, offset_insere: int, registro: str, diferenca_tamanho: int) -> None:
     '''
     A função recebe o offset para a inserção e o conteúdo do registro, escrevendo-o no arquivo.
     '''
-    tamanho_bytes = len(registro).to_bytes(2)
+    tamanho_bytes = (len(registro) + 2).to_bytes(2)
     arq.seek(offset_insere)
     registro_bytes = registro.encode()
     arq.write(tamanho_bytes + registro_bytes)
     if diferenca_tamanho > 0:
-        arq.write(b'\0' * diferenca_tamanho)
+        vazios = b'\0' * diferenca_tamanho
+        arq.write(vazios)
 
-def altera_led(arq: io.BufferedRandom, led: list[tuple[int, int]], offset_anterior: int, offset_prox: int) -> None:
+
+def ordena_led(arq: io.BufferedRandom, led: list[tuple[int, int]], offset_anterior: int, offset_prox: int) -> None:
     '''
-        Ordena a LED
-        Faz o offset_anterior apontar para o offset_prox, no caso estamos removendo um offset da led
-        se o offset removido estiver no cabecalho, reescreve o offset_prox no cabecalho mesmo
+    Ordena a LED
+    Faz o offset_anterior apontar para o offset_prox, no caso estamos removendo um offset da led
+    se o offset removido estiver no cabecalho, reescreve o offset_prox no cabecalho mesmo
     '''
     arq.seek(offset_anterior)
     if offset_anterior != 0:
@@ -157,8 +165,7 @@ def altera_led(arq: io.BufferedRandom, led: list[tuple[int, int]], offset_anteri
     arq.write(offset_prox.to_bytes(4, signed = True))
     led = leia_led(arq)
 
-
-def insere_led(arq: io.BufferedRandom, tam_novo: int, offset_novo: int) -> None:
+def insere_fragmentacao(arq: io.BufferedRandom, tam_novo: int, offset_novo: int) -> None:
     '''A função insere o novo elemento que foi removido na LED mantendo-a ordenada'''
     led = leia_led(arq)
     i = 0
@@ -194,8 +201,8 @@ def insere_led(arq: io.BufferedRandom, tam_novo: int, offset_novo: int) -> None:
         #escreve na nova_frag a posicao da frag i
     led = leia_led(arq)
 
-
 def escreve_fragmentacao(arq: io.BufferedRandom, offset_frag: int, offset_prox_frag: int) -> None:
+    '''A função escreve a posição da próxima fragmentação'''
     arq.seek(offset_frag)
     if offset_frag != 0:
         arq.read(3)
@@ -218,8 +225,11 @@ def leia_led(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     return led
 
 def imprime_led(arq: io.BufferedRandom) -> None:
-    #LED -> [offset: 1850, tam: 90] -> [offset: 477, tam: 92] -> [offset: 1942, tam: 109] -> fim
-    #Total: 3 espacos disponiveis
+    '''
+    A função imprime a led da seguinte forma:
+    LED -> [offset: 1850, tam: 90] -> [offset: 477, tam: 92] -> [offset: 1942, tam: 109] -> fim
+    Total: 3 espacos disponiveis
+    '''
     led = leia_led(arq)
     texto = ''
     for offset, tam in led:
@@ -231,22 +241,88 @@ def imprime_led(arq: io.BufferedRandom) -> None:
     print(texto)
 
     
+
+
 if __name__ == '__main__':
     filmes = open('filmes.dat', 'r+b')
+    indice = constroi_indice(filmes)
     #led = leia_led(filmes)
-    indices = constroi_indice(filmes)
-    print(indices)
-    remove_registro(filmes, 29, indices)
-    #print(busca_binaria(29, indices))
-    #remove_registro(filmes, 20, indices)
-    #remove_registro(filmes, 123, indices)
-    #remove_registro(filmes, 85, indices)
-    #remove_registro(filmes, 114, indices)
-    #remove_registro(filmes, 160, indices)
-    filme = '137|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC|Ang Lee|2000|Ação|120|Chow Yun|'
+    #remove_registro(filmes, 29, indice)
+    #remove_registro(filmes, 20, indice)
+    #remove_registro(filmes, 123, indice)
+    #remove_registro(filmes, 85, indice)
+    #remove_registro(filmes, 114, indice)
+    #remove_registro(filmes, 160, indice)
+    #filme = '137|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC|Ang Lee|2000|Ação|120|Chow Yun|'
     #led = leia_led(filmes)
-    print(len(filme))
-    #insere_arq(filmes, filme)
+    #print(len(filme))
+    #insere_registro(filmes, filme, indice)
+    #imprime_led(filmes)
+    #print(busca_binaria(32, indice))
+    #print(indice)
+
+    busca_binaria(113, indice)
+    busca_binaria(34, indice)
+    busca_binaria(221, indice)
+    insere_registro(filmes, '12|O Silêncio dos Inocentes|Jonathan Demme|1991|Crime, Drama, Suspense|118|Jodie Foster, Anthony Hopkins, Lawrence A. Bonney|', indice)
+    remove_registro(filmes, 85, indice) #Em algum lugar do passado
+    remove_registro(filmes, 20, indice) #Forrest Gump
+    remove_registro(filmes, 311, indice)
+    remove_registro(filmes, 123, indice) #As aventuras de pi
+    #remove_registro(filmes, 7, indice) #A origem
+    remove_registro(filmes, 114, indice)
+    insere_registro(filmes, '72|O Senhor dos Anéis: O Retorno do Rei|Peter Jackson|2003|Aventura, Fantasia|201|Elijah Wood, Ian McKellen, Viggo Mortensen|', indice)
+    #insere_registro(filmes, '150|O Tigre e o Dragão|Ang Lee|2000|Ação, Aventura, Fantasia|120|Chow Yun|', indice)
+    insere_registro(filmes, "47|Jurassic World|Colin Trevorrow|2015|Ação, Aventura, Ficção Científica|124|Chris Pratt, Bryce Dallas Howard, Vincent D'Onofrio|", indice)
+    remove_registro(filmes, 160, indice) #Capitão Fantástico
+    #busca_binaria(150, indice)
+    remove_registro(filmes, 12, indice) 
+    #busca_binaria(29, indice)
+    #busca_binaria(7, indice)
+    #insere_registro(filmes, '44|Como Treinar o Seu Dragão|Dean DeBlois, Chris Sanders|2010|Animação, Aventura, Família|98|Jay Baruchel, Gerard Butler, Craig Ferguson|', indice)
+    #insere_registro(filmes,'126|Corações de Ferro|David Ayer|2014|Ação, Drama, Guerra|134|Brad Pitt, Shia LaBeouf, Logan Lerman|', indice)
+   
+    print(constroi_indice(filmes))
+    print('-----------------------------------------------------------------')
     imprime_led(filmes)
+    print('-----------------------------------------------------------------')
+
+    '''
+    b 113
+    b 34
+    b 221
+    i 12|O Silêncio dos Inocentes|Jonathan Demme|1991|Crime, Drama, Suspense|118|Jodie Foster, Anthony Hopkins, Lawrence A. Bonney|
+    r 85
+    r 20
+    r 311
+    r 123
+    r 7
+    r 114
+    i 72|O Senhor dos Anéis: O Retorno do Rei|Peter Jackson|2003|Aventura, Fantasia|201|Elijah Wood, Ian McKellen, Viggo Mortensen|
+    i 150|O Tigre e o Dragão|Ang Lee|2000|Ação, Aventura, Fantasia|120|Chow Yun|
+    i 47|Jurassic World|Colin Trevorrow|2015|Ação, Aventura, Ficção Científica|124|Chris Pratt, Bryce Dallas Howard, Vincent D'Onofrio|
+    r 160
+    b 150
+    r 12
+    b 29
+    b 7
+    i 44|Como Treinar o Seu Dragão|Dean DeBlois, Chris Sanders|2010|Animação, Aventura, Família|98|Jay Baruchel, Gerard Butler, Craig Ferguson|
+    i 126|Corações de Ferro|David Ayer|2014|Ação, Drama, Guerra|134|Brad Pitt, Shia LaBeouf, Logan Lerman|
+    '''
 
 
+    '''
+    Busca pelo registro de chave "20"
+    20|Forrest Gump|Robert Zemeckis|1994|Drama, Romance|142|Tom Hanks, Robin Wright, Gary Sinise (93 bytes)
+    Inserção do registro de chave "66" (77 bytes)
+    Local: fim do arquivo
+    Remoção do registro de chave "153"
+    Registro removido! (92 bytes)
+    Local: offset = 477 bytes (0x1dd)
+    Remoção do registro de chave "230"
+    Erro: registro não encontrado!
+    Inserção do registro de chave "11" (97 bytes)
+    Local: fim do arquivo
+    Inserção do registro de chave "150" (77 bytes)
+    Tamanho do espaço reutilizado: 92 bytes
+    Local: offset = 477 bytes (0x1dd)'''
