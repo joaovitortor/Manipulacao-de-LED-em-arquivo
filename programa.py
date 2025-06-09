@@ -154,37 +154,37 @@ def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[in
         tam_reg = len(registro.encode())
         led = leia_led(arq)
 
-        if led[0][0] == -1: #insere no final do arquivo (quando led vazia)                      #Eu acho que essa parte não precisa
-            arq.seek(0, os.SEEK_END)                                                            #
-            offset_final = arq.tell()                                                           #
-            escreve_registro(arq, offset_final, registro, 0)                                    #
-            insere_indice(id, offset_final, indice)                                             #
-            imprime_insercao(-1, id, tam_reg, 0)                                                #
+        #if led[0][0] == -1: #insere no final do arquivo (quando led vazia)                      #Eu acho que essa parte não precisa
+        #    arq.seek(0, os.SEEK_END)                                                            #
+        #    offset_final = arq.tell()                                                           #
+        #    escreve_registro(arq, offset_final, registro, 0)                                    #
+        #    insere_indice(id, offset_final, indice)                                             #
+        #    imprime_insercao(-1, id, tam_reg, 0)                                                #
+        #else:
+        i = 0
+        while led[i][1] < tam_reg and i < len(led) -1:
+            i += 1
+        if tam_reg == led[i][1]:
+            diferenca = 0
         else:
-            i = 0
-            while led[i][1] < tam_reg and i < len(led) -1:
-                i += 1
-            if tam_reg == led[i][1]:
-                diferenca = 0
-            else:
-                diferenca = led[i][1] - tam_reg
-            offset_insere = led[i][0]
-            if i == 0: #insere na cabeça da LED
-                escreve_registro(arq, offset_insere, registro, diferenca)
-                insere_indice(id, offset_insere, indice)
-                ordena_led(arq, 0, led[i+1][0])
-                imprime_insercao(offset_insere, id, tam_reg, led[i][1])
-            elif i == len(led) - 1: #insere no fim do arquivo (quando led não vazia)            #Aqui não precisa do ordena_led pro ant
-                arq.seek(0, os.SEEK_END)                                                        #apontar pro -1???
-                offset_final = arq.tell()                                                       #Sepa daria pra simplesmente colocar um if
-                escreve_registro(arq, offset_final, registro, 0)                                #pra juntar os dois
-                insere_indice(id, offset_final, indice)                                         #
-                imprime_insercao(-1, id, tam_reg, 0)                                            #
-            else: #Insere no meio da LED
-                escreve_registro(arq, offset_insere, registro, diferenca)
-                insere_indice(id, offset_insere, indice)
-                ordena_led(arq, led[i-1][0], led[i+1][0])
-                imprime_insercao(offset_insere, id, tam_reg, led[i][1])
+            diferenca = led[i][1] - tam_reg
+        offset_insere = led[i][0]
+        if i == 0 and led[0][0] != -1: #insere na cabeça da LED
+            escreve_registro(arq, offset_insere, registro, diferenca)
+            insere_indice(id, offset_insere, indice)
+            ordena_led(arq, 0, led[i+1][0])
+            imprime_insercao(offset_insere, id, tam_reg, led[i][1])
+        elif i == len(led) - 1: #insere no fim do arquivo (quando led não vazia)            #Aqui não precisa do ordena_led pro ant
+            arq.seek(0, os.SEEK_END)                                                        #apontar pro -1???
+            offset_final = arq.tell()                                                       #Sepa daria pra simplesmente colocar um if
+            escreve_registro(arq, offset_final, registro, 0)                                #pra juntar os dois
+            insere_indice(id, offset_final, indice)                                         #
+            imprime_insercao(-1, id, tam_reg, 0)                                            #
+        else: #Insere no meio da LED
+            escreve_registro(arq, offset_insere, registro, diferenca)
+            insere_indice(id, offset_insere, indice)
+            ordena_led(arq, led[i-1][0], led[i+1][0])
+            imprime_insercao(offset_insere, id, tam_reg, led[i][1])
     else:
         print('ID já existe no arquivo. Insira com outro ID\n')
             
@@ -371,7 +371,7 @@ def main() -> None:
                         if comando[0] == 'i':
                             registro = comando[2:]
                             insere_registro(filmes, registro, indice)
-                    print('As operações do arquivo dados/operacoes.txt foram executadas com sucesso!')
+                    print(f'As operações do arquivo dados/{nomeArq} foram executadas com sucesso!')
             elif operacao == '-p':
                 imprime_led(filmes)
                 print('A LED foi impressa com sucesso!')
