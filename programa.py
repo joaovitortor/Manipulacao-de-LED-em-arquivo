@@ -164,12 +164,9 @@ def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[in
         i = 0
         while led[i][1] < tam_reg and i < len(led) -1:
             i += 1
-        if tam_reg == led[i][1]:
-            diferenca = 0
-        else:
-            diferenca = led[i][1] - tam_reg
+        diferenca = led[i][1] - tam_reg
         offset_insere = led[i][0]
-        if i == 0 and led[0][0] != -1: #insere na cabeça da LED
+        if i == 0: #insere na cabeça da LED
             escreve_registro(arq, offset_insere, registro, diferenca)
             insere_indice(id, offset_insere, indice)
             ordena_led(arq, 0, led[i+1][0])
@@ -185,6 +182,7 @@ def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[in
             insere_indice(id, offset_insere, indice)
             ordena_led(arq, led[i-1][0], led[i+1][0])
             imprime_insercao(offset_insere, id, tam_reg, led[i][1])
+        leia_led(arq)
     else:
         print('ID já existe no arquivo. Insira com outro ID\n')
             
@@ -212,11 +210,11 @@ def escreve_registro(arq: io.BufferedRandom, offset_insere: int, registro: str, 
 def ordena_led(arq: io.BufferedRandom, offset_anterior: int, offset_prox: int) -> None:
     '''
     A função ordena a led. ????????????????
-    Recebe o byte-offset do elemento anterior e do proximo em relação a fragmentação
-    reutilizada, fazendo o "anterior" apontar para o "próximo".
+    Recebe o byte-offset do elemento anterior e do proximo, fazendo o "anterior"
+    apontar para o "próximo".
     Se a inserção for realizada na fragmentação da cabeça da led, escreve o offset_prox
     na cabeça da led(cabeçalho).
-    É chamada quando feita uma inserção de registro que altera a ordem da led.
+    É chamada quando inserida uma fragmentação na led feita uma inserção de registro que altera a ordem da led.
 
     Parâmetros:
         arq:
@@ -227,12 +225,6 @@ def ordena_led(arq: io.BufferedRandom, offset_anterior: int, offset_prox: int) -
     if offset_anterior != 0:
         arq.read(3)
     arq.write(offset_prox.to_bytes(4, signed = True))
-    leia_led(arq)
-
-    #arq.seek(offset_frag)                                                                      #Comparação com escreve_fragmentação()
-    #if offset_frag != 0:                                                                       #
-    #    arq.read(3)                                                                            #
-    #arq.write(offset_prox_frag.to_bytes(4, signed=True))                                       #
 
 def insere_fragmentacao(arq: io.BufferedRandom, tam_novo: int, offset_novo: int) -> None:
     '''
@@ -252,24 +244,17 @@ def insere_fragmentacao(arq: io.BufferedRandom, tam_novo: int, offset_novo: int)
         i += 1
     led.append((offset_novo, tam_novo))
     if i == 0: #insere no cabecalho
-        escreve_fragmentacao(arq, 0, offset_novo)
-        escreve_fragmentacao(arq, offset_novo, led[i][0])
+        ordena_led(arq, 0, offset_novo)
+        ordena_led(arq, offset_novo, led[i][0])
         i == 0
     elif i == tamanho_led:
-        escreve_fragmentacao(arq, led[i-1][0], offset_novo)
-        escreve_fragmentacao(arq, offset_novo, -1)
+        ordena_led(arq, led[i-1][0], offset_novo)
+        ordena_led(arq, offset_novo, -1)
     else:
-        escreve_fragmentacao(arq, led[i-1][0], offset_novo)
-        escreve_fragmentacao(arq, offset_novo, led[i][0])
+        ordena_led(arq, led[i-1][0], offset_novo)
+        ordena_led(arq, offset_novo, led[i][0])
     leia_led(arq)
 
-def escreve_fragmentacao(arq: io.BufferedRandom, offset_frag: int, offset_prox_frag: int) -> None:
-    '''
-    '''
-    arq.seek(offset_frag)
-    if offset_frag != 0:
-        arq.read(3)
-    arq.write(offset_prox_frag.to_bytes(4, signed=True))
 
 def leia_led(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     '''
@@ -371,7 +356,7 @@ def main() -> None:
                         if comando[0] == 'i':
                             registro = comando[2:]
                             insere_registro(filmes, registro, indice)
-                    print(f'As operações do arquivo dados/{nomeArq} foram executadas com sucesso!')
+                    print('As operações do arquivo dados/operacoes.txt foram executadas com sucesso!')
             elif operacao == '-p':
                 imprime_led(filmes)
                 print('A LED foi impressa com sucesso!')
