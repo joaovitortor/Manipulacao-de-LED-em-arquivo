@@ -25,18 +25,6 @@ def constroi_indice(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     chaves.sort()
     return chaves
 
-def insere_no_indice(id: int, offset: int, indice: list[tuple[int, int]]) -> None:            #Sepa mudar o nome????????????
-    '''
-    A função insere uma tupla[ID, byte-offset] ao índice e o ordena. É chamada
-    quando um novo registro é inserido no arquivo.
-
-    Parâmetros:
-        id:
-        offset:
-        indice: 
-    '''
-    indice.append((id, offset))
-    indice.sort()
 
 def leia_nulo(arq: io.BufferedRandom, offset_inicio_busca: int) -> None:
     '''
@@ -50,9 +38,6 @@ def leia_nulo(arq: io.BufferedRandom, offset_inicio_busca: int) -> None:
         arq: O objeto de arquivo binário aberto.
         offset_inicio_busca: O offset a partir do qual a busca pelo próximo
                             registro válido deve começar.
-
-    Retorna:
-        ...
     '''
     arq.seek(offset_inicio_busca)
     encontrou_inicio_valido = False
@@ -147,7 +132,6 @@ def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[in
         arq:
         registro:
         indice:
-
     '''
     id = int(registro.split('|')[0])
     if (busca_binaria(id, indice)) == -1:
@@ -160,20 +144,21 @@ def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[in
         offset_insere = led[i][0]
         if i == 0 and led[i][0] != -1: #insere no offset da cabeca da LED
             escreve_registro(arq, offset_insere, registro, diferenca)
-            insere_no_indice(id, offset_insere, indice)
+            indice.append((id, offset_insere))
             ordena_led(arq, 0, led[i+1][0])
             imprime_insercao(offset_insere, id, tam_reg, led[i][1])
         elif i == len(led) - 1: #insere no fim do arquivo            
             arq.seek(0, os.SEEK_END)                                                        
             offset_final = arq.tell()                                                       
             escreve_registro(arq, offset_final, registro, 0)                                
-            insere_no_indice(id, offset_final, indice)                                         
+            indice.append((id, offset_final))                               
             imprime_insercao(-1, id, tam_reg, 0)                                            
         else: #Insere no meio da LED
             escreve_registro(arq, offset_insere, registro, diferenca)
-            insere_no_indice(id, offset_insere, indice)
+            indice.append((id, offset_insere))                               
             ordena_led(arq, led[i-1][0], led[i+1][0])
             imprime_insercao(offset_insere, id, tam_reg, led[i][1])
+        indice.sort()
         leia_led(arq)
     else:
         print('ID já existe no arquivo. Insira com outro ID\n')
@@ -329,6 +314,23 @@ def imprime_remocao(id: int, tamanho: int, offset: int) -> None:
         print(f'Local: offset = {offset} bytes ({hex(offset)})')
     print()
 
+def compactacao() -> None:
+    with open('filmes.dat', 'r+b') as filmes:
+        indice = constroi_indice(filmes)
+        indice_offset = sorted(indice, key=lambda x: x[1])
+        temporario = open('temporario.dat', 'w+b')
+        temporario.write((-1).to_bytes(4, signed=True))
+        for _, offset in indice_offset:
+            filmes.seek(offset)
+            dados, tamanho = leia_reg(filmes)
+            dado_byte = dados.encode()
+            tamanho_byte = tamanho.to_bytes(2)
+            temporario.write(tamanho_byte + dado_byte)
+    os.remove('filmes.dat')
+    os.rename('temporario.dat', 'filmes.dat')
+        
+
+
 def main() -> None:
     if (len(argv) > 1):
         operacao = argv[1]
@@ -349,9 +351,12 @@ def main() -> None:
                             registro = comando[2:]
                             insere_registro(filmes, registro, indice)
                     print('As operações do arquivo dados/operacoes.txt foram executadas com sucesso!')
+                    print(compactacao(indice))
             elif operacao == '-p':
                 imprime_led(filmes)
                 print('A LED foi impressa com sucesso!')
+        if operacao == '-c':
+            compactacao()
     else:
         print('Quantidade de comandos inválida')
 
