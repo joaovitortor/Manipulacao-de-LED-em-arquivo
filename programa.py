@@ -4,7 +4,10 @@ import os
 
 def constroi_indice(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     '''
-    forma uma tupla com todos os ids e seus offsets do arquivo em ordem crescente dos ids
+    A partir da leitura do arquivo, a função constroi um índice (lista) ordenado a
+    partir do ID.
+    O índice contém tuplas[ID, byte-offset] correspondentes a todos
+    os registros do arquivo.
     '''
     arq.seek(4)
     offset = arq.tell()
@@ -22,16 +25,26 @@ def constroi_indice(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     chaves.sort()
     return chaves
 
-def insere_indice(id: int, offset: str, indice: list[tuple[int, int]]) -> None:
+def insere_indice(id: int, offset: str, indice: list[tuple[int, int]]) -> None:            #Sepa mudar o nome????????????
     '''
-    Insere um elemento (id, offset) na lista de indices e ordena
+    A função insere uma tupla[ID, byte-offset] ao índice e o ordena. É chamada
+    quando um novo registro é inserido no arquivo.
+
+    Parâmetros:
+        id:
+        offset:
+        indice: 
     '''
     indice.append((id, offset))
     indice.sort()
 
 def leia_nulo(arq: io.BufferedRandom, offset_inicio_busca: int) -> None:
     '''
-    oq faz
+    Tem como função posicionar o ponteiro de L/E no início do próximo registro
+    quando fragmentação externa é encontrada.
+    A função inicia a leitura no arquivo a partir do offset_inicio_busca, buscando
+    o início (bytes de tamanho) do próximo registro.
+    É chamada durante a construção do índice.
     
     Parâmetros:
         arq: O objeto de arquivo binário aberto.
@@ -61,7 +74,11 @@ def leia_nulo(arq: io.BufferedRandom, offset_inicio_busca: int) -> None:
 
 def leia_reg(arq: io.BufferedRandom) -> tuple[str, int]:
     ''' 
-    Lê o registro do seek atual e retorna uma tupla ['registro', tamanho]
+    A função lê um registro do arquivo e retorna uma tupla[registro, tamanho]
+    correspondente a str do registro e o seu tamanho.
+    É chamada na construção do índice.
+
+    Retorna:
     '''
     tamanho = int.from_bytes(arq.read(2))
     excluido = arq.read(1)
@@ -72,15 +89,27 @@ def leia_reg(arq: io.BufferedRandom) -> tuple[str, int]:
     arq.seek(tamanho - 1, os.SEEK_CUR)
     return ('', 0)
 
-def busca_binaria(chave: int, indice: list[tuple[int, int]]) -> int:
-    '''A função recebe uma chave(ID) e um índice que contém tuplas(dados, tam) e retorna o byte-offset.'''
+def busca_binaria(id: int, indice: list[tuple[int, int]]) -> int:
+    '''
+    A função faz a busca binária em um índice a partir do ID (chave) do registro,
+    retornando o byte-offset correspondente.
+    É chamado na remoção e inserção de registros, para checar se existe ou não um
+    registro com determinado índice.
+
+    Parâmetros:
+        id:
+        indice:
+    
+    Retorna:
+        Se o id existir, a função retorna seu byte-offset, se não, retorna -1.
+    '''
     i = 0
     f = len(indice) - 1
     while i <= f:
         m = (i + f)//2
-        if indice[m][0] == chave:
+        if indice[m][0] == id:
             return indice[m][1]
-        if indice[m][0] < chave:
+        if indice[m][0] < id:
             i = m + 1
         else: 
             f = m - 1
@@ -88,7 +117,15 @@ def busca_binaria(chave: int, indice: list[tuple[int, int]]) -> int:
 
 def remove_registro(arq: io.BufferedRandom, id: int, indice: list[tuple[int, int]]) -> None:
     '''
-    Remove o id do arq, fazendo a busca pelo id na lista de indices
+    A função remove o registro do arquivo pelo seu id. Escreve após o tamanho, "*"
+    e a chama a função "insere_fragmentação()" que insere na LED a nova fragmentação e
+    escreve a posição do byte-offset da próxima fragmentação da LED pela função
+    "escreve_fragmentação()".
+
+    Parâmetros:
+        arq:
+        id:
+        indice:
     '''
     if busca_binaria(id, indice) != -1:
         offset = busca_binaria(id, indice)
@@ -103,19 +140,26 @@ def remove_registro(arq: io.BufferedRandom, id: int, indice: list[tuple[int, int
 
 def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[int, int]]) -> None:
     '''
-    Insere o registro
+    A função leva em consideração o tamanho do registro para encontrar o local
+    adequado para a inserção.
+
+    Parâmetros:
+        arq:
+        registro:
+        indice:
+
     '''
     id = int(registro.split('|')[0])
     if (busca_binaria(id, indice)) == -1:
         tam_reg = len(registro.encode())
         led = leia_led(arq)
 
-        if led[0][0] == -1: #insere no final do arq
-            arq.seek(0, os.SEEK_END)
-            offset = arq.tell()
-            escreve_registro(arq, offset, registro, 0)
-            insere_indice(id, offset, indice)
-            imprime_insercao(-1, id, tam_reg, 0)
+        if led[0][0] == -1: #insere no final do arquivo (quando led vazia)                      #Eu acho que essa parte não precisa
+            arq.seek(0, os.SEEK_END)                                                            #
+            offset_final = arq.tell()                                                           #
+            escreve_registro(arq, offset_final, registro, 0)                                    #
+            insere_indice(id, offset_final, indice)                                             #
+            imprime_insercao(-1, id, tam_reg, 0)                                                #
         else:
             i = 0
             while led[i][1] < tam_reg and i < len(led) -1:
@@ -125,34 +169,39 @@ def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[in
             else:
                 diferenca = led[i][1] - tam_reg
             offset_insere = led[i][0]
-
-            if i == 0: #insere no cabeçalho
+            if i == 0: #insere na cabeça da LED
                 escreve_registro(arq, offset_insere, registro, diferenca)
                 insere_indice(id, offset_insere, indice)
-                ordena_led(arq, led, 0, led[i+1][0])
+                ordena_led(arq, 0, led[i+1][0])
                 imprime_insercao(offset_insere, id, tam_reg, led[i][1])
-
-            elif i == len(led) - 1: #insere no fim
-                arq.seek(0, os.SEEK_END)
-                offset_final = arq.tell()
-                escreve_registro(arq, offset_final, registro, 0)
-                insere_indice(id, offset_final, indice)
-                imprime_insercao(-1, id, tam_reg, 0)
-
-            else: #Insere no meio
+            elif i == len(led) - 1: #insere no fim do arquivo (quando led não vazia)            #Aqui não precisa do ordena_led pro ant
+                arq.seek(0, os.SEEK_END)                                                        #apontar pro -1???
+                offset_final = arq.tell()                                                       #Sepa daria pra simplesmente colocar um if
+                escreve_registro(arq, offset_final, registro, 0)                                #pra juntar os dois
+                insere_indice(id, offset_final, indice)                                         #
+                imprime_insercao(-1, id, tam_reg, 0)                                            #
+            else: #Insere no meio da LED
                 escreve_registro(arq, offset_insere, registro, diferenca)
                 insere_indice(id, offset_insere, indice)
-                ordena_led(arq, led, led[i-1][0], led[i+1][0])
+                ordena_led(arq, led[i-1][0], led[i+1][0])
                 imprime_insercao(offset_insere, id, tam_reg, led[i][1])
     else:
-        print('ID já existe no arquivo. Tente inserir com outro ID\n')
+        print('ID já existe no arquivo. Insira com outro ID\n')
             
 def escreve_registro(arq: io.BufferedRandom, offset_insere: int, registro: str, diferenca_tamanho: int) -> None:
     '''
-    A função recebe o offset para a inserção e o conteúdo do registro, escrevendo-o no arquivo.
+    A função escreve o registro na posição offset_insere. Se a diferença_tamanho
+    for maior que 0, ou seja, se for inserido em um espaço de fragmentação maior
+    que o registro, escreve nulos até o fim da fragmentação.
+
+    Parâmetros:
+        arq:
+        offset_insere:
+        registro:
+        diferenca_tamanho:
     '''
-    tamanho_bytes = (len(registro.encode())).to_bytes(2)
     arq.seek(offset_insere)
+    tamanho_bytes = (len(registro.encode())).to_bytes(2)
     registro_bytes = registro.encode()
     arq.write(tamanho_bytes)
     arq.write(registro_bytes)
@@ -160,11 +209,19 @@ def escreve_registro(arq: io.BufferedRandom, offset_insere: int, registro: str, 
         vazios = b'\0' * diferenca_tamanho
         arq.write(vazios)
 
-def ordena_led(arq: io.BufferedRandom, led: list[tuple[int, int]], offset_anterior: int, offset_prox: int) -> None:
+def ordena_led(arq: io.BufferedRandom, offset_anterior: int, offset_prox: int) -> None:
     '''
-    Ordena a LED
-    Faz o offset_anterior apontar para o offset_prox, no caso estamos removendo um offset da led
-    se o offset removido estiver no cabecalho, reescreve o offset_prox no cabecalho mesmo
+    A função ordena a led. ????????????????
+    Recebe o byte-offset do elemento anterior e do proximo em relação a fragmentação
+    reutilizada, fazendo o "anterior" apontar para o "próximo".
+    Se a inserção for realizada na fragmentação da cabeça da led, escreve o offset_prox
+    na cabeça da led(cabeçalho).
+    É chamada quando feita uma inserção de registro que altera a ordem da led.
+
+    Parâmetros:
+        arq:
+        offset_anterior:
+        offset_prox:
     '''
     arq.seek(offset_anterior)
     if offset_anterior != 0:
@@ -172,9 +229,21 @@ def ordena_led(arq: io.BufferedRandom, led: list[tuple[int, int]], offset_anteri
     arq.write(offset_prox.to_bytes(4, signed = True))
     leia_led(arq)
 
-def insere_fragmentacao(arq: io.BufferedRandom, tam_novo: int, offset_novo: int) -> None:
-    '''A função insere o novo elemento que foi removido na LED mantendo-a ordenada
+    #arq.seek(offset_frag)                                                                      #Comparação com escreve_fragmentação()
+    #if offset_frag != 0:                                                                       #
+    #    arq.read(3)                                                                            #
+    #arq.write(offset_prox_frag.to_bytes(4, signed=True))                                       #
 
+def insere_fragmentacao(arq: io.BufferedRandom, tam_novo: int, offset_novo: int) -> None:
+    '''
+    A função insere na led a fragmentação resultante da remoção de um registro.
+    Para isso, recebe o tamanho da nova fragmentação para comparar com o tamanho
+    das outras fragmentações para ordenar a led de forma apropriada.
+
+    Parâmetros:
+        arq:
+        tam_novo:
+        offset_novo:
     '''
     led = leia_led(arq)
     i = 0
@@ -186,7 +255,7 @@ def insere_fragmentacao(arq: io.BufferedRandom, tam_novo: int, offset_novo: int)
         escreve_fragmentacao(arq, 0, offset_novo)
         escreve_fragmentacao(arq, offset_novo, led[i][0])
         i == 0
-    elif i == tamanho_led: #insere 
+    elif i == tamanho_led:
         escreve_fragmentacao(arq, led[i-1][0], offset_novo)
         escreve_fragmentacao(arq, offset_novo, -1)
     else:
@@ -195,7 +264,8 @@ def insere_fragmentacao(arq: io.BufferedRandom, tam_novo: int, offset_novo: int)
     leia_led(arq)
 
 def escreve_fragmentacao(arq: io.BufferedRandom, offset_frag: int, offset_prox_frag: int) -> None:
-    '''A função escreve a posição da próxima fragmentação'''
+    '''
+    '''
     arq.seek(offset_frag)
     if offset_frag != 0:
         arq.read(3)
