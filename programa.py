@@ -25,7 +25,7 @@ def constroi_indice(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     chaves.sort()
     return chaves
 
-def insere_indice(id: int, offset: str, indice: list[tuple[int, int]]) -> None:            #Sepa mudar o nome????????????
+def insere_indice(id: int, offset: int, indice: list[tuple[int, int]]) -> None:            #Sepa mudar o nome????????????
     '''
     A função insere uma tupla[ID, byte-offset] ao índice e o ordena. É chamada
     quando um novo registro é inserido no arquivo.
@@ -83,8 +83,8 @@ def leia_reg(arq: io.BufferedRandom) -> tuple[str, int]:
     tamanho = int.from_bytes(arq.read(2))
     excluido = arq.read(1)
     if tamanho > 0 and excluido != b'*':
-        registro = arq.read(tamanho-1)
-        registro = (excluido + registro).decode('utf-8')
+        registro_byte = arq.read(tamanho-1)
+        registro = excluido.decode() + registro_byte.decode()
         return (registro, tamanho)
     arq.seek(tamanho - 1, os.SEEK_CUR)
     return ('', 0)
@@ -304,7 +304,7 @@ def imprime_led(arq: io.BufferedRandom) -> None:
     print(texto) 
     print()  
 
-def imprime_busca(arq: io.BufferedReader, id: int, indice: list[tuple[int, int]]) -> None:
+def imprime_busca(arq: io.BufferedRandom, id: int, indice: list[tuple[int, int]]) -> None:
     '''
     Busca pelo registro de chave "20"
     20|Forrest Gump|Robert Zemeckis|1994|Drama, Romance|142|Tom Hanks, Robin Wright, Gary Sinise (93 bytes)
