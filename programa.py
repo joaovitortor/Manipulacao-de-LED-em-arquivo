@@ -25,7 +25,7 @@ def constroi_indice(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     chaves.sort()
     return chaves
 
-def insere_indice(id: int, offset: int, indice: list[tuple[int, int]]) -> None:            #Sepa mudar o nome????????????
+def insere_no_indice(id: int, offset: int, indice: list[tuple[int, int]]) -> None:            #Sepa mudar o nome????????????
     '''
     A função insere uma tupla[ID, byte-offset] ao índice e o ordena. É chamada
     quando um novo registro é inserido no arquivo.
@@ -153,33 +153,25 @@ def insere_registro(arq: io.BufferedRandom, registro: str, indice: list[tuple[in
     if (busca_binaria(id, indice)) == -1:
         tam_reg = len(registro.encode())
         led = leia_led(arq)
-
-        #if led[0][0] == -1: #insere no final do arquivo (quando led vazia)                      #Eu acho que essa parte não precisa
-        #    arq.seek(0, os.SEEK_END)                                                            #
-        #    offset_final = arq.tell()                                                           #
-        #    escreve_registro(arq, offset_final, registro, 0)                                    #
-        #    insere_indice(id, offset_final, indice)                                             #
-        #    imprime_insercao(-1, id, tam_reg, 0)                                                #
-        #else:
         i = 0
         while led[i][1] < tam_reg and i < len(led) -1:
             i += 1
         diferenca = led[i][1] - tam_reg
         offset_insere = led[i][0]
-        if i == 0: #insere na cabeça da LED
+        if i == 0 and led[i][0] != -1: #insere no offset da cabeca da LED
             escreve_registro(arq, offset_insere, registro, diferenca)
-            insere_indice(id, offset_insere, indice)
+            insere_no_indice(id, offset_insere, indice)
             ordena_led(arq, 0, led[i+1][0])
             imprime_insercao(offset_insere, id, tam_reg, led[i][1])
-        elif i == len(led) - 1: #insere no fim do arquivo (quando led não vazia)            #Aqui não precisa do ordena_led pro ant
-            arq.seek(0, os.SEEK_END)                                                        #apontar pro -1???
-            offset_final = arq.tell()                                                       #Sepa daria pra simplesmente colocar um if
-            escreve_registro(arq, offset_final, registro, 0)                                #pra juntar os dois
-            insere_indice(id, offset_final, indice)                                         #
-            imprime_insercao(-1, id, tam_reg, 0)                                            #
+        elif i == len(led) - 1: #insere no fim do arquivo            
+            arq.seek(0, os.SEEK_END)                                                        
+            offset_final = arq.tell()                                                       
+            escreve_registro(arq, offset_final, registro, 0)                                
+            insere_no_indice(id, offset_final, indice)                                         
+            imprime_insercao(-1, id, tam_reg, 0)                                            
         else: #Insere no meio da LED
             escreve_registro(arq, offset_insere, registro, diferenca)
-            insere_indice(id, offset_insere, indice)
+            insere_no_indice(id, offset_insere, indice)
             ordena_led(arq, led[i-1][0], led[i+1][0])
             imprime_insercao(offset_insere, id, tam_reg, led[i][1])
         leia_led(arq)
@@ -209,7 +201,7 @@ def escreve_registro(arq: io.BufferedRandom, offset_insere: int, registro: str, 
 
 def ordena_led(arq: io.BufferedRandom, offset_anterior: int, offset_prox: int) -> None:
     '''
-    A função ordena a led. ????????????????
+    A função ordena a led.
     Recebe o byte-offset do elemento anterior e do proximo, fazendo o "anterior"
     apontar para o "próximo".
     Se a inserção for realizada na fragmentação da cabeça da led, escreve o offset_prox
@@ -258,7 +250,7 @@ def insere_fragmentacao(arq: io.BufferedRandom, tam_novo: int, offset_novo: int)
 
 def leia_led(arq: io.BufferedRandom) -> list[tuple[int, int]]:
     '''
-    A função lê o cabeça da led no arquivo e retorna uma lista contendo todas as fragmentações na ordem
+    A função lê a cabeça da led no arquivo e retorna uma lista contendo todas as fragmentações na ordem
     '''
     arq.seek(0)
     offset_prox = int.from_bytes(arq.read(4), signed=True)
