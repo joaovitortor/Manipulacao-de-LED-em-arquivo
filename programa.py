@@ -318,14 +318,14 @@ def compactacao() -> None:
     with open('filmes.dat', 'r+b') as filmes:
         indice = constroi_indice(filmes)
         indice_offset = sorted(indice, key=lambda x: x[1])
-        temporario = open('temporario.dat', 'w+b')
-        temporario.write((-1).to_bytes(4, signed=True))
-        for _, offset in indice_offset:
-            filmes.seek(offset)
-            dados, tamanho = leia_reg(filmes)
-            dado_byte = dados.encode()
-            tamanho_byte = tamanho.to_bytes(2)
-            temporario.write(tamanho_byte + dado_byte)
+        with open('temporario.dat', 'w+b') as temporario:
+            temporario.write((-1).to_bytes(4, signed=True))
+            for _, offset in indice_offset:
+                filmes.seek(offset)
+                dados, tamanho = leia_reg(filmes)
+                dado_byte = dados.encode()
+                tamanho_byte = tamanho.to_bytes(2)
+                temporario.write(tamanho_byte + dado_byte)
     os.remove('filmes.dat')
     os.rename('temporario.dat', 'filmes.dat')
         
@@ -334,29 +334,31 @@ def compactacao() -> None:
 def main() -> None:
     if (len(argv) > 1):
         operacao = argv[1]
-        with open('filmes.dat', 'r+b') as filmes:
-            indice = constroi_indice(filmes)
-            if operacao == '-e' and len(argv) == 3:
-                nomeArq = argv[2]
-                with open(nomeArq, 'r') as arq:
-                    comandos = arq.readlines()
-                    for comando in comandos:
-                        if comando[0] == 'b':
-                            id = int(comando[2:])
-                            imprime_busca(filmes, id, indice)
-                        if comando[0] == 'r':
-                            id = int(comando[2:])
-                            remove_registro(filmes, id, indice)
-                        if comando[0] == 'i':
-                            registro = comando[2:]
-                            insere_registro(filmes, registro, indice)
-                    print('As operações do arquivo dados/operacoes.txt foram executadas com sucesso!')
-                    print(compactacao(indice))
-            elif operacao == '-p':
-                imprime_led(filmes)
-                print('A LED foi impressa com sucesso!')
-        if operacao == '-c':
-            compactacao()
+        try:
+            with open('filmes.dat', 'r+b') as filmes:
+                indice = constroi_indice(filmes)
+                if operacao == '-e' and len(argv) == 3:
+                    nomeArq = argv[2]
+                    with open(nomeArq, 'r') as arq:
+                        comandos = arq.readlines()
+                        for comando in comandos:
+                            if comando[0] == 'b':
+                                id = int(comando[2:])
+                                imprime_busca(filmes, id, indice)
+                            if comando[0] == 'r':
+                                id = int(comando[2:])
+                                remove_registro(filmes, id, indice)
+                            if comando[0] == 'i':
+                                registro = comando[2:]
+                                insere_registro(filmes, registro, indice)
+                        print('As operações do arquivo dados/operacoes.txt foram executadas com sucesso!')
+                elif operacao == '-p':
+                    imprime_led(filmes)
+                    ('A LED foi impressa com sucesso!')         
+            if operacao == '-c':
+                compactacao()
+        except FileNotFoundError:
+            print('Arquivo não encontrado')
     else:
         print('Quantidade de comandos inválida')
 
