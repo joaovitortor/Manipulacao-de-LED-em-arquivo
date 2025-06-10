@@ -276,9 +276,10 @@ def imprime_busca(arq: io.BufferedRandom, id: int, indice: list[tuple[int, int]]
     if offset != -1:
         arq.seek(offset)
         dados, tamanho = leia_reg(arq)
-        print(dados)
+        print(f'{dados} ({tamanho} bytes)')
+        print(f'Local: offset = {offset} bytes ({hex(offset)})')
     else:
-        print('Id não existe')
+        print('registro não encontrado!')
     print()
 
 def imprime_insercao(offset: int, id: int, tamanho: int, frag: int) -> None:
@@ -343,10 +344,10 @@ def main() -> None:
                         comandos = arq.readlines()
                         for comando in comandos:
                             if comando[0] == 'b':
-                                id = int(comando[2:])
+                                id = int(comando.split()[1])
                                 imprime_busca(filmes, id, indice)
                             if comando[0] == 'r':
-                                id = int(comando[2:])
+                                id = int(comando.split()[1])
                                 remove_registro(filmes, id, indice)
                             if comando[0] == 'i':
                                 registro = comando[2:]
